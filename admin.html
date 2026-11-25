@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ระบบจัดการออเดอร์ & แพ็คสินค้า</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* ตั้งค่าการพิมพ์เฉพาะใบจ่าหน้าพัสดุ */
+    @media print {
+      body * { visibility: hidden; }
+      #printArea, #printArea * { visibility: visible; }
+      #printArea { position: absolute; left: 0; top: 0; width: 100%; }
+    }
+  </style>
+</head>
+<body class="bg-gray-100 p-6 font-sans">
+
+  <div class="max-w-5xl mx-auto">
+    <div class="flex justify-between items-center mb-6">
+      <h1 class="text-2xl font-bold text-gray-800">📦 ระบบหยิบและแพ็คสินค้า (Fulfillment)</h1>
+      <button onclick="loadOrders()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">รีเฟรชข้อมูล</button>
+    </div>
+
+    <div id="orderList" class="space-y-4">
+      <p class="text-gray-500">กำลังโหลดรายการสั่งซื้อ...</p>
+    </div>
+  </div>
+
+  <!-- พื้นที่สำหรับพิมพ์ใบจ่าหน้าพัสดุ -->
+  <div id="printArea" class="hidden p-8 border-2 border-black bg-white max-w-md mx-auto">
+    <div class="border-b-2 border-black pb-3 mb-3">
+      <p class="text-xs font-bold">ผู้ส่ง (SENDER):</p>
+      <p class="font-bold">CRAFT CACAO BAR</p>
+      <p class="text-sm">123 ถนนสุขุมวิท เขตวัฒนา กรุงเทพฯ 10110 | โทร: 02-000-0000</p>
+    </div>
+    <div class="border-b-2 border-black pb-4 mb-3">
+      <p class="text-xs font-bold">ผู้รับ (RECEIVER):</p>
+      <p id="lblName" class="text-lg font-bold mt-1"></p>
+      <p id="lblPhone" class="font-semibold"></p>
+      <p id="lblAddress" class="text-sm mt-1 whitespace-pre-line"></p>
+    </div>
+    <div class="flex justify-between items-center text-xs">
+      <span id="lblOrderId" class="font-mono font-bold"></span>
+      <span id="lblItems" class="font-bold"></span>
+    </div>
+  </div>
+
+  <script>
+  
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxwNRZV0Knoc020v9kGoXwkc9eZl4rW5UjbHyomhkUuVtzoUrroiTSGU8lHbc0kj0C-/exec';
+
+    async function loadOrders() {
+      const container = document.getElementById('orderList');
+      container.innerHTML = '<p class="text-gray-500">กำลังโหลดข้อมูล...</p>';
+      
+      const res = await fetch(SCRIPT_URL);
+      const orders = await res.json();
+      container.innerHTML = '';
+
+      orders.reverse().forEach(order => {
+        const isPacked = order.Status === 'แพ็คแล้ว';
+        const card = document.createElement('div');
+        card.className = `bg-white p-5 rounded-xl shadow-sm border-l-4 ${isPacked ? 'border-green-500' : 'border-amber-500'}`;
+        
+        card.innerHTML = `
+          <div class="flex flex-wrap justify-between items-start gap-4">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-lg">${order.OrderID}</span>
+                <span class="text-xs px-2 py-1 rounded-full ${isPacked ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'}">${order.Status}</span>
+                <span class="text-xs text-gray-400">${order.Timestamp}</span>
+              </div>
+              <p class="font-semibold mt-2">${order.CustomerName} (${order.Phone})</p>
+              <p class="text-sm text-gray-600">${order.Address}</p>
+            </div>
+
+            <!-- รายการหยิบสินค้า (Pick List) -->
+            <div class="bg-gray-50 p-3 rounded-lg border text-sm min-w-[220px]">
+              <p class="font-bold text-gray-700 mb-1">📋 รายการหยิบสินค้า:</p>
+              <label class="flex items-center gap-2">
+                <input type="checkbox" ${isPacked ? 'checked' : ''}> 
+                <span>Dark Choc 70%: <b>${order.SKU_1_Qty}</b> แท่ง</span>
+              </label>
+              <label class="flex items-center gap-2 mt-1">
+                <input type="checkbox" ${isPacked ? 'checked' : ''}> 
+                <span>Almond Milk: <b>${order.SKU_2_Qty}</b> แท่ง</span>
+              </label>
+              <p class="mt-2 pt-1 border-t font-bold text-right">ยอดรวม: ฿${order.TotalPrice}</p>
+            </div>
+          </div>
+
+          <div class="mt-4 pt-3 border-t flex flex-wrap justify-end gap-2">
+            <button onclick='printLabel(${JSON.stringify(order)})' class="bg-gray-800 text-white px-4 py-1.5 rounded-lg text-sm hover:bg-gray-700">
+              🖨️ พิมพ์ใบจ่าหน้าพัสดุ
+            </button>
+            ${!isPacked ? `
+              <button onclick="markAsPacked('${order.OrderID}')" class="bg-green-600 text-white px-4 py-1.5 rounded-lg text-sm hover:bg-green-700">
+                ✅ ยืนยันการแพ็คสินค้า
+              </button>
+            ` : `<span class="text-sm text-green-700 font-medium py-1.5 px-2">เลขพัสดุ: ${order.TrackingNo || '-'}</span>`}
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function printLabel(order) {
+      document.getElementById('lblName').innerText = order.CustomerName;
+      document.getElementById('lblPhone').innerText = 'โทร: ' + order.Phone;
+      document.getElementById('lblAddress').innerText = order.Address;
+      document.getElementById('lblOrderId').innerText = 'Order: ' + order.OrderID;
+      document.getElementById('lblItems').innerText = `Dark:${order.SKU_1_Qty} | Milk:${order.SKU_2_Qty}`;
+      
+      const printArea = document.getElementById('printArea');
+      printArea.classList.remove('hidden');
+      window.print();
+      printArea.classList.add('hidden');
+    }
+
+    async function markAsPacked(orderId) {
+      const tracking = prompt('กรอกเลขพัสดุ (Tracking Number) ถ้ามี หรือเว้นว่างไว้:');
+      if (tracking === null) return;
+
+      await fetch(SCRIPT_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: 'updateStatus',
+          orderId: orderId,
+          status: 'แพ็คแล้ว',
+          trackingNo: tracking
+        })
+      });
+      loadOrders();
+    }
+
+    loadOrders();
+  </script>
+</body>
+</html>
